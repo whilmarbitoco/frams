@@ -3,6 +3,7 @@
 import { db } from "@/db";
 import { user, studentFaces } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 export async function getStudents() {
   const students = await db.query.user.findMany({
@@ -18,3 +19,41 @@ export async function getStudents() {
 
   return studentsWithFaces;
 }
+
+export async function updateStudent(formData: FormData) {
+  const id = formData.get("id") as string;
+  const name = formData.get("name") as string;
+  const email = formData.get("email") as string;
+
+  if (!id) return { error: "Missing ID" };
+
+  try {
+    await db
+      .update(user)
+      .set({ name, email })
+      .where(eq(user.id, id));
+
+    revalidatePath("/admin/students");
+    return { success: true };
+  } catch (error) {
+    console.error("Update student error:", error);
+    return { error: "Failed to update student" };
+  }
+}
+
+export async function deleteStudent(id: string) {
+  if (!id) return { error: "Missing ID" };
+
+  try {
+    // Also delete associated faces
+    await db.delete(studentFaces).where(eq(studentFaces.studentId, id));
+    await db.delete(user).where(eq(user.id, id));
+
+    revalidatePath("/admin/students");
+    return { success: true };
+  } catch (error) {
+    console.error("Delete student error:", error);
+    return { error: "Failed to delete student" };
+  }
+}
+

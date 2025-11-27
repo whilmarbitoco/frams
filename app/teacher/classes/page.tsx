@@ -1,8 +1,16 @@
 import { getTeacherClasses, createClass } from "@/actions/classes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import Link from "next/link";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DaysOfWeek } from "@/components/days-of-week";
 
 export default async function TeacherClassesPage() {
   const classesList = await getTeacherClasses();
@@ -18,13 +26,13 @@ export default async function TeacherClassesPage() {
             <CardDescription>Add a new class to your schedule.</CardDescription>
           </CardHeader>
           <CardContent>
-              <form
-                action={async (formData) => {
-                  "use server";
-                  await createClass(formData);
-                }}
-                className="space-y-4"
-              >
+            <form
+              action={async (formData) => {
+                "use server";
+                await createClass(formData);
+              }}
+              className="space-y-4"
+            >
               <div className="space-y-2">
                 <label className="text-sm font-medium">Class Name</label>
                 <Input name="name" placeholder="e.g. CS101" required />
@@ -39,7 +47,11 @@ export default async function TeacherClassesPage() {
                   <Input name="endTime" type="time" required />
                 </div>
               </div>
-              <Button type="submit" className="w-full">Create Class</Button>
+              <DaysOfWeekForm />{" "}
+              {/* New component for days of week selection */}
+              <Button type="submit" className="w-full">
+                Create Class
+              </Button>
             </form>
           </CardContent>
         </Card>
@@ -53,11 +65,15 @@ export default async function TeacherClassesPage() {
               <Card key={cls.id}>
                 <CardHeader className="pb-2">
                   <CardTitle>{cls.name}</CardTitle>
-                  <CardDescription>{cls.startTime} - {cls.endTime}</CardDescription>
+                  <CardDescription>
+                    {cls.startTime} - {cls.endTime}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Link href={`/teacher/class/${cls.id}`}>
-                    <Button variant="outline" size="sm">Manage</Button>
+                    <Button variant="outline" size="sm">
+                      Manage
+                    </Button>
                   </Link>
                 </CardContent>
               </Card>
@@ -66,5 +82,24 @@ export default async function TeacherClassesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function DaysOfWeekForm() {
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+
+  const handleDayChange = (day: string, isSelected: boolean) => {
+    setSelectedDays((prev) =>
+      isSelected ? [...prev, day] : prev.filter((d) => d !== day)
+    );
+  };
+
+  return (
+    <>
+      <DaysOfWeek selectedDays={selectedDays} onDayChange={handleDayChange} />
+      {selectedDays.map((day) => (
+        <input type="hidden" key={day} name="days" value={day} />
+      ))}
+    </>
   );
 }

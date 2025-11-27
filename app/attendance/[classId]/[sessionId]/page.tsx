@@ -1,121 +1,177 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import * as tf from "@tensorflow/tfjs";
-import * as tmImage from "@teachablemachine/image";
 import Webcam from "react-webcam";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { markAttendance } from "@/actions/attendance";
 import { useParams } from "next/navigation";
+import { Loader2, CheckCircle, XCircle } from "lucide-react";
+import { FaceMesh } from "@mediapipe/face_mesh";
+import { Camera } from "@mediapipe/camera_utils";
 
 export default function AttendanceMarkingPage() {
+  const webcamRef = useRef<Webcam>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [model, setModel] = useState<any>(null);
+  const [status, setStatus] = useState<
+    "loading" | "ready" | "scanning" | "success" | "error"
+  >("loading");
+  const [recognizedStudent, setRecognizedStudent] = useState<string | null>(
+    null
+  );
   const params = useParams();
-  const classId = params.classId as string;
+  const classId = parseInt(params.classId as string, 10);
   const sessionId = params.sessionId as string;
 
-  const webcamRef = useRef<Webcam>(null);
-  const [model, setModel] = useState<tmImage.CustomMobileNet | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "scanning" | "success" | "error">("loading");
-  const [recognizedStudent, setRecognizedStudent] = useState<string | null>(null);
-
-  // Placeholder model URL - in a real app, this would be fetched from DB/Settings
-  // Admin would train model on Teachable Machine and provide this URL
-  const URL = "https://teachablemachine.withgoogle.com/models/CbC1vH2pE/"; 
+  const URL = "https://teachablemachine.withgoogle.com/models/CbC1vH2pE/";
 
   useEffect(() => {
-    async function loadModel() {
+    // Dynamically load scripts
+    const tfScript = document.createElement("script");
+    tfScript.src =
+      "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js";
+    tfScript.async = true;
+    document.body.appendChild(tfScript);
+
+    const tmScript = document.createElement("script");
+    tmScript.src =
+      "https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js";
+    tmScript.async = true;
+    document.body.appendChild(tmScript);
+
+    tmScript.onload = async () => {
       try {
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
-        const loadedModel = await tmImage.load(modelURL, metadataURL);
+        const loadedModel = await (window as any).tmImage.load(
+          URL + "model.json",
+          URL + "metadata.json"
+        );
         setModel(loadedModel);
         setStatus("ready");
-      } catch (error) {
-        console.error("Failed to load model:", error);
+      } catch (err) {
+        console.error("Failed to load model:", err);
         setStatus("error");
       }
-    }
-    loadModel();
+    };
   }, []);
 
-  const predict = async () => {
-    if (!model || !webcamRef.current?.video) return;
+  useEffect(() => {
+    if (status === "ready" && webcamRef.current?.video) {
+      const faceMesh = new FaceMesh({
+        locateFile: (file) =>
+          `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+      });
 
-    setStatus("scanning");
-    const prediction = await model.predict(webcamRef.current.video as HTMLVideoElement);
-    
-    // Find the class with the highest probability
-    let highestProb = 0;
-    let bestClass = "";
+      faceMesh.setOptions({
+        maxNumFaces: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      });
 
-    prediction.forEach((p) => {
-      if (p.probability > highestProb) {
-        highestProb = p.probability;
-        bestClass = p.className;
+      faceMesh.onResults(onResults);
+
+      const camera = new Camera(webcamRef.current.video!, {
+        onFrame: async () => {
+          await faceMesh.send({ image: webcamRef.current!.video! });
+        },
+        width: 640,
+        height: 480,
+      });
+      camera.start();
+    }
+  }, [status]);
+
+  const onResults = (results: any) => {
+    const canvas = canvasRef.current;
+    if (canvas && results.multiFaceLandmarks) {
+      const canvasCtx = canvas.getContext("2d")!;
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const landmarks of results.multiFaceLandmarks) {
+        // Draw bounding box (simplified)
+        const x = landmarks[0].x * canvas.width;
+        const y = landmarks[0].y * canvas.height;
+        const w = (landmarks[200].x - landmarks[0].x) * canvas.width;
+        const h = (landmarks[400].y - landmarks[0].y) * canvas.height;
+        canvasCtx.strokeStyle = "#FFC107";
+        canvasCtx.lineWidth = 2;
+        canvasCtx.strokeRect(x, y, w, h);
       }
-    });
+      canvasCtx.restore();
 
-    if (highestProb > 0.85) {
-      setRecognizedStudent(bestClass);
-      await markAttendance(bestClass);
-    } else {
-      setStatus("ready"); // Retry
-      alert("Face not recognized or low confidence. Please try again.");
+      // Predict if not already successful
+      if (status !== "success") {
+        predict();
+      }
     }
   };
 
-  const markAttendance = async (studentId: string) => {
-    try {
-      const response = await fetch("/api/attendance/mark", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId, sessionId, studentId }),
-      });
+  const predict = async () => {
+    if (!model || !webcamRef.current?.video || status === "scanning") return;
 
-      if (response.ok) {
+    setStatus("scanning");
+    const prediction = await model.predict(
+      webcamRef.current.video as HTMLVideoElement
+    );
+
+    for (const p of prediction) {
+      if (p.probability > 0.85) {
+        setRecognizedStudent(p.className);
         setStatus("success");
-      } else {
-        throw new Error("Failed to mark attendance");
+        await markAttendance(p.className, classId, sessionId);
+        break;
       }
-    } catch (error) {
-      console.error(error);
-      setStatus("error");
+    }
+
+    if (status !== "success") {
+      setStatus("ready"); // Reset if no confident prediction
     }
   };
 
   return (
-    <div className="container mx-auto p-8 max-w-2xl">
-      <Card>
-        <CardHeader>
-          <CardTitle>Mark Attendance</CardTitle>
-          <CardDescription>Look at the camera to mark your attendance.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center gap-6">
-          <div className="relative rounded-lg overflow-hidden border-2 border-primary">
-             <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                width={480}
-                height={480}
-                videoConstraints={{ facingMode: "user" }}
-              />
-          </div>
+    <div className="relative w-full max-w-2xl mx-auto">
+      <Webcam
+        ref={webcamRef}
+        width={640}
+        height={480}
+        videoConstraints={{ facingMode: "user" }}
+        className="rounded-lg"
+      />
+      <canvas
+        ref={canvasRef}
+        className="absolute top-0 left-0"
+        width={640}
+        height={480}
+      />
 
-          {status === "loading" && <p>Loading model...</p>}
-          {status === "ready" && (
-            <Button onClick={predict} size="lg">Mark Attendance</Button>
-          )}
-          {status === "scanning" && <p>Scanning...</p>}
-          {status === "success" && (
-            <div className="text-green-600 text-center">
-              <h3 className="text-xl font-bold">Attendance Marked!</h3>
-              <p>Welcome, {recognizedStudent}.</p>
-            </div>
-          )}
-          {status === "error" && <p className="text-red-600">Error. Please try again.</p>}
-        </CardContent>
-      </Card>
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+        {status === "loading" && (
+          <Button disabled>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Loading Model...
+          </Button>
+        )}
+        {status === "ready" && (
+          <Button onClick={predict}>Mark Attendance</Button>
+        )}
+        {status === "scanning" && (
+          <Button disabled>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Scanning...
+          </Button>
+        )}
+        {status === "success" && (
+          <Button variant="default" className="bg-green-500 text-white">
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Welcome, {recognizedStudent}!
+          </Button>
+        )}
+        {status === "error" && (
+          <Button variant="destructive">
+            <XCircle className="mr-2 h-4 w-4" />
+            Failed to load model
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

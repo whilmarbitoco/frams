@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { Sidebar } from "@/components/layout/sidebar";
 
 export default async function TeacherLayout({
   children,
@@ -19,16 +20,11 @@ export default async function TeacherLayout({
   // if (session.user.role !== 'teacher') redirect("/");
 
   return (
-    <div className="min-h-screen bg-background">
-        <nav className="border-b p-4">
-            <div className="container mx-auto flex justify-between items-center">
-                <h1 className="font-bold">FRAMS Teacher</h1>
-                <div className="flex gap-4">
-                    <span>{session.user.email}</span>
-                </div>
-            </div>
-        </nav>
-        {children}
+    <div className="container grid flex-1 gap-12 md:grid-cols-[200px_1fr]">
+      <aside className="hidden w-[200px] flex-col md:flex">
+        <Sidebar role="teacher" />
+      </aside>
+      <main>{children}</main>
     </div>
   );
 }

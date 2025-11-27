@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import cloudinary from "@/lib/cloudinary";
 import { db } from "@/db";
-import { studentFaces, users } from "@/db/schema";
+import { studentFaces, user } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function POST(req: Request) {
@@ -14,13 +14,13 @@ export async function POST(req: Request) {
 
     // Check if student exists or create one (simplified for MVP)
     // In a real app, admin would create student record first
-    let user = await db.query.users.findFirst({
-        where: eq(users.studentId, studentId)
+    let foundUser = await db.query.user.findFirst({
+        where: eq(user.studentId, studentId)
     });
 
     if (!user) {
         // Create new student user
-        const [newUser] = await db.insert(users).values({
+        const [newUser] = await db.insert(user).values({
             name: `Student ${studentId}`, // Placeholder name
             email: `${studentId}@student.school`, // Placeholder email
             role: 'student',
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       });
       
       await db.insert(studentFaces).values({
-        studentId: user!.id,
+        studentId: foundUser!.id,
         imageUrl: result.secure_url,
       });
       

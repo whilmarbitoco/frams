@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { classes, user, classStudents } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { classes, user, classStudents, schedule, attendance } from "@/db/schema";
+import { eq, desc } from "drizzle-orm"; // Import desc for ordering
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -19,18 +19,27 @@ export async function createClass(formData: FormData) {
   const name = formData.get("name") as string;
   const startTime = formData.get("startTime") as string;
   const endTime = formData.get("endTime") as string;
+  const days = formData.getAll("days") as string[];
 
-  if (!name || !startTime || !endTime) {
+  if (!name || !startTime || !endTime || days.length === 0) {
     return { error: "Missing fields" };
   }
 
   try {
-    await db.insert(classes).values({
+    const [newClass] = await db.insert(classes).values({
       name,
-      teacherId: session.user.id, // Now text, no parseInt needed
+      teacherId: session.user.id,
       startTime,
       endTime,
-    });
+    }).returning();
+
+    if (newClass) {
+      const scheduleEntries = days.map((day) => ({
+        classId: newClass.id,
+        day: day as "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday",
+      }));
+      await db.insert(schedule).values(scheduleEntries);
+    }
 
     revalidatePath("/teacher/classes");
     return { success: true };
@@ -65,6 +74,11 @@ export async function getClassDetails(classId: number) {
   
   // Verify ownership
   if (classData?.teacherId !== session.user.id) return null;
+
+  // Get schedule for this class
+  const classSchedule = await db.query.schedule.findMany({
+    where: eq(schedule.classId, classId),
+  });
   
   // Get students in this class
   const students = await db
@@ -77,10 +91,26 @@ export async function getClassDetails(classId: number) {
     .from(classStudents)
     .innerJoin(user, eq(classStudents.studentId, user.id))
     .where(eq(classStudents.classId, classId));
+
+  // Get attendance records for this class
+  const attendanceRecords = await db
+    .select({
+      studentName: user.name,
+      studentId: user.studentId,
+      status: attendance.status,
+      timestamp: attendance.createdAt,
+      sessionId: attendance.sessionId,
+    })
+    .from(attendance)
+    .innerJoin(user, eq(attendance.studentId, user.id))
+    .where(eq(attendance.classId, classId))
+    .orderBy(desc(attendance.createdAt)); // Order by newest first
   
   return {
     ...classData,
     students,
+    schedule: classSchedule.map(s => s.day), // Return only the day strings
+    attendanceRecords,
   };
 }
 
@@ -106,6 +136,28 @@ export async function addStudentToClass(classId: number, studentIdStr: string) {
         return { success: true };
     } catch (error) {
         console.error("Add student error:", error);
-        return { error: "Failed to add student" };
-    }
-}
+            return { error: "Failed to add student" };
+          }
+        }
+        
+        export async function startAttendanceSession(classId: number) {
+          const session = await auth.api.getSession({
+              headers: await headers()
+          });
+          if (!session) return { error: "Unauthorized" };
+        
+          // Verify teacher owns the class
+          const classData = await db.query.classes.findFirst({
+            where: eq(classes.id, classId),
+          });
+          
+          if (classData?.teacherId !== session.user.id) return { error: "Unauthorized" };
+        
+          // Generate a unique session ID
+          const sessionId = crypto.randomUUID(); // Using crypto.randomUUID() for a robust unique ID
+        
+          // No direct database insertion for session in current schema,
+          // but the sessionId will be used when students mark attendance.
+        
+          return { success: true, sessionId };
+        }

@@ -1,8 +1,7 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Sidebar } from "@/components/layout/sidebar";
 
 export default async function AdminLayout({
   children,
@@ -20,17 +19,11 @@ export default async function AdminLayout({
   // In a real app, check role === 'admin'
 
   return (
-    <div className="min-h-screen bg-background">
-        <nav className="border-b p-4">
-            <div className="container mx-auto flex justify-between items-center">
-                <h1 className="font-bold">FRAMS Admin</h1>
-                <div className="flex gap-4">
-                    <Link href="/admin/students"><Button variant="ghost">Students</Button></Link>
-                    <Link href="/admin/images"><Button variant="ghost">Images</Button></Link>
-                </div>
-            </div>
-        </nav>
-        {children}
+    <div className="container grid flex-1 gap-12 md:grid-cols-[200px_1fr]">
+      <aside className="hidden w-[200px] flex-col md:flex">
+        <Sidebar role="admin" />
+      </aside>
+      <main>{children}</main>
     </div>
   );
 }
