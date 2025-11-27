@@ -3,28 +3,37 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 
-export default async function TeacherLayout({
-  children,
-}: {
+interface TeacherLayoutProps {
   children: React.ReactNode;
-}) {
-  const session = await auth.api.getSession({
-      headers: await headers()
-  });
+}
 
+export default async function TeacherLayout({ children }: TeacherLayoutProps) {
+  // Get cookies from request headers
+  const cookieHeader = await headers();
+  const cookie = cookieHeader.get("cookie") ?? "";
+
+  const session = await auth.api.getSession({ headers: { cookie } });
+
+  // If no session, redirect to login
   if (!session) {
     redirect("/login");
   }
 
-  // In a real app, check role === 'teacher'
-  // if (session.user.role !== 'teacher') redirect("/");
+  // Optional: enforce teacher role
+  // if (session.user?.role !== "teacher") {
+  //   redirect("/"); // redirect non-teachers
+  // }
 
   return (
-    <div className="container grid flex-1 gap-12 md:grid-cols-[200px_1fr]">
-      <aside className="hidden w-[200px] flex-col md:flex">
-        <Sidebar role="teacher" />
-      </aside>
-      <main>{children}</main>
+    <div className="border-t">
+      <div className="bg-background">
+        <div className="grid lg:grid-cols-5">
+          <Sidebar className="hidden lg:block" />
+          <div className="col-span-3 lg:col-span-4 lg:border-l">
+            <div className="h-full px-4 py-6 lg:px-8">{children}</div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

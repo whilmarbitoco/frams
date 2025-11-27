@@ -3,9 +3,17 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { WebcamCapture } from "@/components/webcam-capture";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { motion } from "@/components/motion";
 
 export default function StudentFaceRegistration() {
   const [studentId, setStudentId] = useState("");
@@ -16,7 +24,7 @@ export default function StudentFaceRegistration() {
   const handleCapture = async (images: string[]) => {
     setIsCapturing(false);
     setIsUploading(true);
-    
+
     try {
       const response = await fetch("/api/upload", {
         method: "POST",
@@ -35,65 +43,138 @@ export default function StudentFaceRegistration() {
     }
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.5,
+      },
+    },
+  };
+
   return (
-    <div className="container mx-auto p-8 max-w-2xl">
-      <Card>
+    <motion.div
+      className="flex flex-col items-center justify-center min-h-screen bg-background"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Student Face Registration</CardTitle>
-          <CardDescription>Enter your Student ID and look at the camera.</CardDescription>
+          <motion.div variants={itemVariants}>
+            <CardTitle className="text-2xl">Face Registration</CardTitle>
+            <CardDescription>Enter your Student ID to begin.</CardDescription>
+          </motion.div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Student ID</label>
-            <Input 
-              placeholder="Enter Student ID" 
-              value={studentId} 
-              onChange={(e) => setStudentId(e.target.value)}
-              disabled={isCapturing || isUploading || status === "success"}
-            />
-          </div>
+        <CardContent className="space-y-4">
+          {status === "idle" && (
+            <>
+              <motion.div className="space-y-2" variants={itemVariants}>
+                <Input
+                  placeholder="Enter Student ID"
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  disabled={isCapturing || isUploading}
+                />
+              </motion.div>
 
-          {studentId && status !== "success" && (
-            <div className="flex flex-col items-center gap-4">
-              <WebcamCapture onCapture={handleCapture} isCapturing={isCapturing} />
-              
-              {!isCapturing && !isUploading && (
-                <Button onClick={() => setIsCapturing(true)} disabled={!studentId}>
-                  Start Capture
-                </Button>
-              )}
+              {studentId && (
+                <motion.div className="flex flex-col items-center gap-4" variants={containerVariants}>
+                  <WebcamCapture
+                    onCapture={handleCapture}
+                    isCapturing={isCapturing}
+                  />
 
-              {isUploading && (
-                <Button disabled>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Uploading Images...
-                </Button>
+                  {!isCapturing && !isUploading && (
+                    <motion.div variants={itemVariants}>
+                      <Button
+                        onClick={() => setIsCapturing(true)}
+                        disabled={!studentId}
+                      >
+                        Start Capture
+                      </Button>
+                    </motion.div>
+                  )}
+
+                  {isUploading && (
+                    <motion.div variants={itemVariants}>
+                      <Button disabled className="w-full">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </Button>
+                    </motion.div>
+                  )}
+                </motion.div>
               )}
-            </div>
+            </>
           )}
 
           {status === "success" && (
-            <div className="text-center text-green-600 p-4 bg-green-50 rounded-lg">
-              <h3 className="font-bold text-lg">Registration Complete!</h3>
-              <p>Your face data has been securely saved.</p>
-              <Button variant="outline" className="mt-4" onClick={() => {
-                  setStatus("idle");
-                  setStudentId("");
-                  setIsCapturing(false);
-              }}>
-                  Register Another
-              </Button>
-            </div>
+            <motion.div className="flex flex-col items-center text-center space-y-4" variants={containerVariants}>
+              <motion.div variants={itemVariants}>
+                <CheckCircle className="w-16 h-16 text-green-500" />
+              </motion.div>
+              <motion.h3 className="font-bold text-lg" variants={itemVariants}>Registration Complete!</motion.h3>
+              <motion.p className="text-muted-foreground" variants={itemVariants}>
+                Your face has been securely saved.
+              </motion.p>
+              <motion.div variants={itemVariants}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setStatus("idle");
+                    setStudentId("");
+                  }}
+                >
+                  Register Another Student
+                </Button>
+              </motion.div>
+            </motion.div>
           )}
 
           {status === "error" && (
-            <div className="text-center text-red-600">
-              <p>Something went wrong. Please try again.</p>
-              <Button variant="outline" className="mt-2" onClick={() => setStatus("idle")}>Retry</Button>
-            </div>
+            <motion.div className="flex flex-col items-center text-center space-y-4" variants={containerVariants}>
+              <motion.div variants={itemVariants}>
+                <AlertCircle className="w-16 h-16 text-red-500" />
+              </motion.div>
+              <motion.h3 className="font-bold text-lg" variants={itemVariants}>Registration Failed</motion.h3>
+              <motion.p className="text-muted-foreground" variants={itemVariants}>
+                Something went wrong. Please try again.
+              </motion.p>
+              <motion.div variants={itemVariants}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setStatus("idle")}
+                >
+                  Retry
+                </Button>
+              </motion.div>
+            </motion.div>
           )}
         </CardContent>
       </Card>
-    </div>
+      <motion.div variants={itemVariants}>
+        <Link
+          href="/"
+          className="mt-4 text-sm text-muted-foreground hover:underline"
+        >
+          Back to Home
+        </Link>
+      </motion.div>
+    </motion.div>
   );
 }

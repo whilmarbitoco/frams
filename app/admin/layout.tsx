@@ -8,22 +8,29 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({
-      headers: await headers()
-  });
+  const cookieHeader = await headers();
+  const cookie = cookieHeader.get("cookie") ?? "";
 
+  const session = await auth.api.getSession({ headers: { cookie } });
   if (!session) {
     redirect("/login");
   }
 
-  // In a real app, check role === 'admin'
+  // In a real app, you would check for the 'admin' role
+  // if (session.user. !== "admin") {
+  //   redirect("/");
+  // }
 
   return (
-    <div className="container grid flex-1 gap-12 md:grid-cols-[200px_1fr]">
-      <aside className="hidden w-[200px] flex-col md:flex">
-        <Sidebar role="admin" />
-      </aside>
-      <main>{children}</main>
+    <div className="border-t">
+      <div className="bg-background">
+        <div className="grid lg:grid-cols-5">
+          <Sidebar className="hidden lg:block" />
+          <div className="col-span-3 lg:col-span-4 lg:border-l">
+            <div className="h-full px-4 py-6 lg:px-8">{children}</div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

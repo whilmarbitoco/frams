@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { startAttendanceSession } from "@/actions/classes"; // Import the server action
+import { startAttendanceSession } from "@/actions/classes";
 import { Loader2 } from "lucide-react";
+import { motion } from "@/components/motion";
 
 export default function AttendanceSessionPage() {
   const params = useParams();
@@ -47,59 +48,99 @@ export default function AttendanceSessionPage() {
     }
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.5,
+      },
+    },
+  };
+
   if (isLoading) {
     return (
-      <div className="container mx-auto p-8 max-w-2xl text-center">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-        <p>Starting attendance session...</p>
+      <div className="flex items-center justify-center min-h-[calc(100vh-theme(spacing.16))]">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-lg text-muted-foreground">Starting attendance session...</p>
+        </motion.div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto p-8 max-w-2xl text-center">
-        <Card>
-          <CardHeader>
-            <CardTitle>Error</CardTitle>
-            <CardDescription>{error}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={createSession}>Retry</Button>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-center min-h-[calc(100vh-theme(spacing.16))]">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle>Error</CardTitle>
+              <CardDescription>{error}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={createSession}>Retry</Button>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-8 max-w-2xl">
-      <Card>
+    <motion.div
+      className="flex items-center justify-center min-h-[calc(100vh-theme(spacing.16))]"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      <Card className="w-full max-w-2xl">
         <CardHeader>
-          <CardTitle>Attendance Session</CardTitle>
-          <CardDescription>Share this link with students or open it on a kiosk.</CardDescription>
+          <motion.div variants={itemVariants}>
+            <CardTitle>Attendance Session</CardTitle>
+            <CardDescription>Share this link with students or open it on a kiosk.</CardDescription>
+          </motion.div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-2">
+          <motion.div className="space-y-2" variants={itemVariants}>
             <label className="text-sm font-medium">Session ID</label>
             <Input value={sessionId || ""} readOnly />
-          </div>
+          </motion.div>
 
-          <div className="space-y-2">
+          <motion.div className="space-y-2" variants={itemVariants}>
             <label className="text-sm font-medium">Attendance Link</label>
             <div className="flex gap-2">
               <Input value={attendanceLink} readOnly />
               <Button onClick={copyToClipboard} disabled={!attendanceLink}>Copy</Button>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="pt-4">
+          <motion.div className="pt-4" variants={itemVariants}>
             <Link href={`/attendance/${classId}/${sessionId}`} target="_blank">
               <Button className="w-full" size="lg" disabled={!sessionId}>Open Attendance Kiosk</Button>
             </Link>
-          </div>
+          </motion.div>
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   );
 }

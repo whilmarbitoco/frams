@@ -1,4 +1,6 @@
-import { getTeacherClasses, createClass } from "@/actions/classes";
+"use client";
+
+import { createClass, getTeacherClasses } from "@/actions/classes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -6,33 +8,80 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
 import Link from "next/link";
-import { Checkbox } from "@/components/ui/checkbox";
-import { DaysOfWeek } from "@/components/days-of-week";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { DaysOfWeekForm } from "@/components/days-of-week-form";
+import { motion } from "@/components/motion";
+import { useEffect, useState } from "react";
 
-export default async function TeacherClassesPage() {
-  const classesList = await getTeacherClasses();
+export default function TeacherClassesPage() {
+  const [classesList, setClassesList] = useState<Awaited<ReturnType<typeof getTeacherClasses>>>([]);
+
+  useEffect(() => {
+    getTeacherClasses().then(setClassesList);
+  }, []);
+
+  const handleCreateClass = async (formData: FormData) => {
+    await createClass(formData);
+    const updatedClasses = await getTeacherClasses();
+    setClassesList(updatedClasses);
+  };
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.5,
+      },
+    },
+  };
 
   return (
-    <div className="container mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8">My Classes</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Create New Class</CardTitle>
-            <CardDescription>Add a new class to your schedule.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              action={async (formData) => {
-                "use server";
-                await createClass(formData);
-              }}
-              className="space-y-4"
-            >
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      <div className="flex items-center justify-between space-y-2">
+        <motion.h1 className="text-3xl font-bold" variants={itemVariants}>My Classes</motion.h1>
+        <Dialog>
+          <DialogTrigger asChild>
+            <motion.div variants={itemVariants}>
+              <Button>Create New Class</Button>
+            </motion.div>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Class</DialogTitle>
+            </DialogHeader>
+            <form action={handleCreateClass} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Class Name</label>
                 <Input name="name" placeholder="e.g. CS101" required />
@@ -47,59 +96,54 @@ export default async function TeacherClassesPage() {
                   <Input name="endTime" type="time" required />
                 </div>
               </div>
-              <DaysOfWeekForm />{" "}
-              {/* New component for days of week selection */}
+              <DaysOfWeekForm />
               <Button type="submit" className="w-full">
                 Create Class
               </Button>
             </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+      <motion.div className="mt-8" variants={itemVariants}>
+        <Card>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Class Name</TableHead>
+                  <TableHead>Time</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {classesList.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center">
+                      No classes found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  classesList.map((cls) => (
+                    <TableRow key={cls.id}>
+                      <TableCell>{cls.name}</TableCell>
+                      <TableCell>
+                        {cls.startTime} - {cls.endTime}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Link href={`/teacher/class/${cls.id}`}>
+                          <Button variant="outline" size="sm">
+                            Manage
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
-
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Existing Classes</h2>
-          {classesList.length === 0 ? (
-            <p className="text-muted-foreground">No classes found.</p>
-          ) : (
-            classesList.map((cls) => (
-              <Card key={cls.id}>
-                <CardHeader className="pb-2">
-                  <CardTitle>{cls.name}</CardTitle>
-                  <CardDescription>
-                    {cls.startTime} - {cls.endTime}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Link href={`/teacher/class/${cls.id}`}>
-                    <Button variant="outline" size="sm">
-                      Manage
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DaysOfWeekForm() {
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
-
-  const handleDayChange = (day: string, isSelected: boolean) => {
-    setSelectedDays((prev) =>
-      isSelected ? [...prev, day] : prev.filter((d) => d !== day)
-    );
-  };
-
-  return (
-    <>
-      <DaysOfWeek selectedDays={selectedDays} onDayChange={handleDayChange} />
-      {selectedDays.map((day) => (
-        <input type="hidden" key={day} name="days" value={day} />
-      ))}
-    </>
+      </motion.div>
+    </motion.div>
   );
 }
