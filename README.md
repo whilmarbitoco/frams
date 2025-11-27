@@ -18,7 +18,7 @@ Students register their faces and mark attendance with no login, while teachers 
 - [Development Guide](#development-guide)
 - [Project Structure](#project-structure)
 - [Core Flows](#core-flows)
-- [Model Training (Teachable Machine)](#model-training-teachable-machine)
+- [Model Training](#model-training-teachable-machine)
 - [Security](#security)
 - [MVP Scope](#mvp-scope)
 - [Roadmap](#roadmap)
@@ -76,7 +76,7 @@ It focuses on a seamless student experience and efficient class management for t
 | **Database**         | Neon PostgreSQL + Drizzle ORM          |
 | **Auth**             | BetterAuth (teacher/admin only)        |
 | **Storage**          | Cloudinary                             |
-| **Face Recognition** | Teachable Machine + TensorFlow.js      |
+| **Face Recognition** | TensorFlow.js                          |
 | **Webcam**           | Browser `getUserMedia`                 |
 
 ---
@@ -97,7 +97,7 @@ It focuses on a seamless student experience and efficient class management for t
 
 ### **Recognition Pipeline**
 
-1. Model trained via Google Teachable Machine
+1. Trained Model
 2. Model exported for **TensorFlow.js**
 3. Loaded in-browser during attendance
 4. Live webcam feed processed
@@ -230,7 +230,7 @@ actions/
 hooks/
   useWebcam.ts           # Webcam helper hook
 public/
-  tm-model/              # Teachable Machine exported model
+  model/                 # Exported model
 ```
 
 ---
@@ -258,7 +258,7 @@ public/
 
 ## **3. Attendance Recognition**
 
-1. TF.js loads Teachable Machine model
+1. TF.js loads model
 2. Webcam runs continuously
 3. Model predicts label (student ID)
 4. If confidence ≥ **85%**
@@ -266,7 +266,7 @@ public/
 
 ---
 
-# **Model Training (Teachable Machine)**
+# **Model Training **
 
 ### **Dataset Preparation**
 
@@ -281,10 +281,10 @@ dataset/
 
 ### **Training Steps**
 
-1. Upload dataset to Teachable Machine
+1. Upload dataset
 2. Train model
 3. Export model to **TensorFlow.js format**
-4. Place model in `public/tm-model/`
+4. Place model in `public/model/`
 5. Update env variable:
 
 ```
