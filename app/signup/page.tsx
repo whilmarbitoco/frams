@@ -4,11 +4,24 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { signUpTeacher } from "@/actions/signUpTeacher";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { signUpUser } from "@/actions/auth"; // Correct import
 
 export default function SignupPage() {
   const router = useRouter();
@@ -17,6 +30,7 @@ export default function SignupPage() {
     email: "",
     password: "",
     confirmPassword: "",
+    role: "teacher", // Default role
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,11 +52,21 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const result = await signUpTeacher(formData);
+      const result = await signUpUser({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role, // Pass the selected role
+      }); 
       if (result.error) {
-        setError(result.error);
+        setError(result.error as string); // Cast to string as signUpUser returns { error: string } or { error: FieldErrors }
       } else {
-        router.push("/teacher/classes");
+        // Redirect based on role
+        if (formData.role === "admin") {
+          router.push("/admin/students");
+        } else {
+          router.push("/teacher/classes");
+        }
       }
     } catch (err) {
       setError("An unexpected error occurred. Please try again.");
@@ -52,8 +76,8 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <Card className="w-full max-w-sm">
+    <div className="flex items-center justify-center min-h-screen bg-background"> {/* Added bg-background */}
+      <Card className="w-full max-w-sm mx-auto px-4 md:px-6 py-8"> {/* Added content wrapper */}
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl">Create an account</CardTitle>
           <CardDescription>
@@ -62,11 +86,7 @@ export default function SignupPage() {
         </CardHeader>
         <form onSubmit={handleSignup}>
           <CardContent className="grid gap-4">
-            {error && (
-              <div className="text-red-500 text-sm">
-                {error}
-              </div>
-            )}
+            {error && <div className="text-destructive text-sm">{error}</div>} {/* Used text-destructive */}
             <div className="grid gap-2">
               <Label htmlFor="name">Name</Label>
               <Input
@@ -75,7 +95,9 @@ export default function SignupPage() {
                 placeholder="John Doe"
                 required
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
               />
             </div>
             <div className="grid gap-2">
@@ -86,8 +108,25 @@ export default function SignupPage() {
                 placeholder="m@example.com"
                 required
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
               />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="role">Role</Label>
+              <Select
+                value={formData.role}
+                onValueChange={(value) => setFormData({ ...formData, role: value })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="teacher">Teacher</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
@@ -97,7 +136,9 @@ export default function SignupPage() {
                 required
                 minLength={8}
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, password: e.target.value })
+                }
               />
             </div>
             <div className="grid gap-2">
@@ -108,7 +149,9 @@ export default function SignupPage() {
                 required
                 minLength={8}
                 value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, confirmPassword: e.target.value })
+                }
               />
             </div>
           </CardContent>
@@ -118,7 +161,7 @@ export default function SignupPage() {
             </Button>
             <div className="text-center text-sm text-muted-foreground">
               Already have an account?{" "}
-              <Link href="/login" className="underline">
+              <Link href="/login" className="underline text-primary hover:text-primary/80"> {/* Used text-primary */}
                 Login
               </Link>
             </div>

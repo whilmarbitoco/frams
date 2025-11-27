@@ -3,12 +3,7 @@
 import { createClass, getTeacherClasses } from "@/actions/classes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import {
   Dialog,
@@ -30,7 +25,9 @@ import { motion } from "@/components/motion";
 import { useEffect, useState } from "react";
 
 export default function TeacherClassesPage() {
-  const [classesList, setClassesList] = useState<Awaited<ReturnType<typeof getTeacherClasses>>>([]);
+  const [classesList, setClassesList] = useState<
+    Awaited<ReturnType<typeof getTeacherClasses>>
+  >([]);
 
   useEffect(() => {
     getTeacherClasses().then(setClassesList);
@@ -64,13 +61,11 @@ export default function TeacherClassesPage() {
   };
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
+    <motion.div variants={containerVariants} initial="hidden" animate="visible">
       <div className="flex items-center justify-between space-y-2">
-        <motion.h1 className="text-3xl font-bold" variants={itemVariants}>My Classes</motion.h1>
+        <motion.h1 className="text-3xl font-bold" variants={itemVariants}>
+          My Classes
+        </motion.h1>
         <Dialog>
           <DialogTrigger asChild>
             <motion.div variants={itemVariants}>

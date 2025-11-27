@@ -25,7 +25,7 @@ export default async function TeacherLayout({ children }: TeacherLayoutProps) {
   // }
 
   return (
-    <div className="border-t">
+    <div className="border-t mx-auto max-w-7xl">
       <div className="bg-background">
         <div className="grid lg:grid-cols-5">
           <Sidebar className="hidden lg:block" />
