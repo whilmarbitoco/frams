@@ -1,44 +1,29 @@
 "use client";
 
-import { db } from "@/db";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { getStudentFaces } from "@/actions/images";
+
 import { Input } from "@/components/ui/input";
 import { motion } from "@/components/motion";
 import { useEffect, useState } from "react";
 
-// This is a client component, but it's fetching data directly.
-// In a real app, you'd likely use a server action or API route to fetch data.
-// For the purpose of adding animations, we'll convert it to client-side data fetching.
-async function getStudentFaces(searchTerm: string) {
-    const faces = await db.query.studentFaces.findMany({
-      where: (studentFaces, { like }) =>
-        searchTerm ? like(studentFaces.studentId, `%${searchTerm}%`) : undefined,
-      orderBy: (studentFaces, { desc }) => [desc(studentFaces.createdAt)],
-      with: {
-        student: {
-          columns: {
-            name: true,
-          },
-        },
-      },
-    });
-    return faces;
-}
+type FaceWithStudent = {
+  id: number;
+  imageUrl: string;
+  createdAt: Date;
+  studentId: string;
+  student: {
+    name: string;
+    studentId: string | null;
+  };
+};
 
-export default function AdminImagesPage({
-  searchParams,
-}: {
-  searchParams: { search?: string };
-}) {
-    const [searchTerm, setSearchTerm] = useState(searchParams.search || "");
-    const [faces, setFaces] = useState<Awaited<ReturnType<typeof getStudentFaces>>>([]);
+import { useSearchParams } from "next/navigation";
+
+export default function AdminImagesPage() {
+    const searchParams = useSearchParams();
+    const initialSearch = searchParams.get("search") ?? "";
+    const [searchTerm, setSearchTerm] = useState(initialSearch);
+    const [faces, setFaces] = useState<FaceWithStudent[]>([]);
 
     useEffect(() => {
         getStudentFaces(searchTerm).then(setFaces);
@@ -70,8 +55,9 @@ export default function AdminImagesPage({
       variants={containerVariants}
       initial="hidden"
       animate="visible"
+      className="p-6"
     >
-      <div className="flex items-center justify-between space-y-2">
+      <div className="flex items-center justify-between space-y-2 mb-6">
         <motion.h1 className="text-3xl font-bold" variants={itemVariants}>Student Images</motion.h1>
         <motion.div variants={itemVariants}>
           <Input
@@ -84,33 +70,47 @@ export default function AdminImagesPage({
           />
         </motion.div>
       </div>
-      <motion.div className="border rounded-md mt-8" variants={itemVariants}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Student Name</TableHead>
-              <TableHead>Student ID</TableHead>
-              <TableHead>Image</TableHead>
-              <TableHead>Created At</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {faces.map((face) => (
-              <motion.tr key={face.id} variants={itemVariants}>
-                <TableCell>{face.student.name}</TableCell>
-                <TableCell>{face.studentId}</TableCell>
-                <TableCell>
+      <motion.div 
+        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" 
+        variants={itemVariants}
+      >
+        {faces.length === 0 ? (
+          <div className="col-span-full text-center py-12 text-muted-foreground border rounded-lg bg-muted/10">
+            No images found matching your search.
+          </div>
+        ) : (
+          faces.map((face) => (
+            <motion.div 
+              key={face.id} 
+              variants={itemVariants}
+              className="group relative bg-card rounded-lg overflow-hidden border shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="aspect-square relative overflow-hidden bg-muted">
+                <a href={face.imageUrl} target="_blank" rel="noopener noreferrer">
                   <img
                     src={face.imageUrl}
-                    alt="Student Face"
-                    className="w-16 h-16 object-cover rounded-md"
+                    alt={`${face.student.name}'s face`}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    loading="lazy"
                   />
-                </TableCell>
-                <TableCell>{face.createdAt.toLocaleString()}</TableCell>
-              </motion.tr>
-            ))}
-          </TableBody>
-        </Table>
+                </a>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
+              </div>
+              
+              <div className="p-3 space-y-1">
+                <h3 className="font-semibold truncate" title={face.student.name}>
+                  {face.student.name}
+                </h3>
+                <p className="text-xs text-muted-foreground font-mono truncate">
+                  ID: {face.student.studentId}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(face.createdAt).toLocaleDateString()} {new Date(face.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            </motion.div>
+          ))
+        )}
       </motion.div>
     </motion.div>
   );

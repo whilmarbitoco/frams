@@ -56,18 +56,9 @@ export function WebcamCapture({ onCapture, isCapturing }: WebcamCaptureProps) {
 
   return (
     <div className="flex flex-col items-center gap-4 w-full">
-      <p className="text-sm font-bold text-green-600">DEBUG: Webcam Component Rendered</p>
       <div 
-        className="relative w-full max-w-2xl aspect-video rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700"
-        style={{ 
-          border: '4px solid red',
-          minHeight: '400px'
-        }}
+        className="relative w-full max-w-2xl aspect-video rounded-lg overflow-hidden border-2 border-border bg-muted"
       >
-        <p className="absolute top-2 left-2 z-50 text-xs bg-yellow-300 text-black p-1 rounded">
-          Webcam Container
-        </p>
-        
         {/* Webcam - always rendered, similar to attendance page */}
         <Webcam
           audio={false}
@@ -79,11 +70,6 @@ export function WebcamCapture({ onCapture, isCapturing }: WebcamCaptureProps) {
             height: { ideal: 720 }
           }}
           className="w-full h-full object-cover"
-          style={{
-            display: 'block',
-            width: '100%',
-            height: '100%'
-          }}
         />
 
         {/* Display capture indicator and count */}

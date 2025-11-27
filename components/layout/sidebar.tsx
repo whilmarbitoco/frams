@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BookUser, Landmark, Users } from "lucide-react";
+import { BookUser, ImagesIcon, Landmark, Users } from "lucide-react";
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   // Define any props here if needed
@@ -33,6 +33,12 @@ export function Sidebar({ className }: SidebarProps) {
         icon: BookUser,
         roles: ["admin"],
       },
+        {
+      href: "/admin/images",
+      label: "Images",
+      icon: ImagesIcon,
+      roles: ["admin"],
+    },
   ];
 
   // This is a placeholder for user roles. In a real app, you'd get this from your auth system.

@@ -57,3 +57,38 @@ export async function deleteStudent(id: string) {
   }
 }
 
+export async function createStudent(formData: FormData) {
+  const name = formData.get("name") as string;
+  const email = formData.get("email") as string;
+  const studentId = formData.get("studentId") as string;
+
+  if (!name || !email || !studentId) {
+    return { error: "Missing required fields" };
+  }
+
+  try {
+    // Check if student ID already exists
+    const existingStudent = await db.query.user.findFirst({
+      where: eq(user.studentId, studentId),
+    });
+
+    if (existingStudent) {
+      return { error: "Student ID already exists" };
+    }
+
+    await db.insert(user).values({
+      id: `student_${studentId}_${Date.now()}`,
+      name,
+      email,
+      studentId,
+      role: "student",
+      emailVerified: false,
+    });
+
+    revalidatePath("/admin/students");
+    return { success: true };
+  } catch (error) {
+    console.error("Create student error:", error);
+    return { error: "Failed to create student" };
+  }
+}
