@@ -6,6 +6,7 @@ import {
   integer,
   boolean,
 } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm"; // Import relations
 
 // BetterAuth required tables
 export const user = pgTable("user", {
@@ -21,6 +22,14 @@ export const user = pgTable("user", {
     .default("student"),
   studentId: text("student_id").unique(), // Nullable for teachers/admins
 });
+
+// Define relations for the user table
+export const userRelations = relations(user, ({ many }) => ({
+  studentFaces: many(studentFaces),
+  classes: many(classes),
+  classStudents: many(classStudents),
+  attendance: many(attendance),
+}));
 
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
@@ -108,6 +117,14 @@ export const studentFaces = pgTable("student_faces", {
   imageUrl: text("image_url").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Define relations for the studentFaces table
+export const studentFacesRelations = relations(studentFaces, ({ one }) => ({
+  student: one(user, {
+    fields: [studentFaces.studentId],
+    references: [user.id],
+  }),
+}));
 
 export const attendance = pgTable("attendance", {
   id: serial("id").primaryKey(),

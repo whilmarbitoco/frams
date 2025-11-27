@@ -1,25 +1,43 @@
 "use server";
 
 import { db } from "@/db";
-import { studentFaces } from "@/db/schema";
-import { desc, like } from "drizzle-orm";
+import { studentFaces, user } from "@/db/schema"; // Import user table
+import { desc, like, eq } from "drizzle-orm"; // Import eq
 
 export async function getStudentFaces(searchTerm: string = "") {
   try {
-    const faces = await db.query.studentFaces.findMany({
-      where: (studentFaces, { like }) =>
-        searchTerm ? like(studentFaces.studentId, `%${searchTerm}%`) : undefined,
-      orderBy: [desc(studentFaces.createdAt)],
-      with: {
-        student: {
-          columns: {
-            name: true,
-            studentId: true,
+    if (searchTerm) {
+      const facesWithStudent = await db
+        .select({
+          id: studentFaces.id,
+          imageUrl: studentFaces.imageUrl,
+          createdAt: studentFaces.createdAt,
+          studentId: studentFaces.studentId,
+          student: {
+            name: user.name,
+            studentId: user.studentId,
+          },
+        })
+        .from(studentFaces)
+        .innerJoin(user, eq(studentFaces.studentId, user.id))
+        .where(like(user.studentId, `%${searchTerm}%`))
+        .orderBy(desc(studentFaces.createdAt));
+
+      return facesWithStudent;
+    } else {
+      const faces = await db.query.studentFaces.findMany({
+        orderBy: [desc(studentFaces.createdAt)],
+        with: {
+          student: {
+            columns: {
+              name: true,
+              studentId: true,
+            },
           },
         },
-      },
-    });
-    return faces;
+      });
+      return faces;
+    }
   } catch (error) {
     console.error("Failed to fetch student faces:", error);
     return [];

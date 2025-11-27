@@ -38,7 +38,9 @@ export function WebcamCapture({ onCapture, isCapturing }: WebcamCaptureProps) {
 
       timeout = setTimeout(() => {
         clearInterval(interval);
-        console.log(`Capture complete. Total images: ${capturedImagesRef.current.length}`);
+        console.log(
+          `Capture complete. Total images: ${capturedImagesRef.current.length}`
+        );
         if (capturedImagesRef.current.length > 0) {
           onCapture(capturedImagesRef.current);
         } else {
@@ -56,26 +58,26 @@ export function WebcamCapture({ onCapture, isCapturing }: WebcamCaptureProps) {
 
   return (
     <div className="flex flex-col items-center gap-4 w-full">
-      <div 
-        className="relative w-full max-w-2xl aspect-video rounded-lg overflow-hidden border-2 border-border bg-muted"
-      >
-        {/* Webcam - always rendered, similar to attendance page */}
+      <div className="relative w-full max-w-2xl aspect-video rounded-lg overflow-hidden border-2 border-border bg-muted">
         <Webcam
           audio={false}
           ref={webcamRef}
           screenshotFormat="image/jpeg"
-          videoConstraints={{ 
+          videoConstraints={{
             facingMode: "user",
             width: { ideal: 1280 },
-            height: { ideal: 720 }
+            height: { ideal: 720 },
           }}
-          className="w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover z-10 transform scale-x-[-1]"
         />
 
         {/* Display capture indicator and count */}
         {isCapturing && (
           <div className="absolute top-4 right-4 z-20 px-3 py-2 text-sm font-semibold rounded-md bg-primary text-primary-foreground shadow-lg animate-pulse">
-            📸 {capturedImages.length > 0 ? `Captured: ${capturedImages.length}` : 'Recording...'}
+            📸{" "}
+            {capturedImages.length > 0
+              ? `Captured: ${capturedImages.length}`
+              : "Recording..."}
           </div>
         )}
       </div>

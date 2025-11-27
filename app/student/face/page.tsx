@@ -13,7 +13,6 @@ import {
 import { WebcamCapture } from "@/components/webcam-capture";
 import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
-import { motion } from "@/components/motion";
 
 export default function StudentFaceRegistration() {
   const [studentId, setStudentId] = useState("");
@@ -21,7 +20,7 @@ export default function StudentFaceRegistration() {
   const [isUploading, setIsUploading] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [uploadedCount, setUploadedCount] = useState(0);
-  const [errorMessage, setErrorMessage] = useState(""); 
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleCapture = async (images: string[]) => {
     console.log(`handleCapture called with ${images.length} images`);
@@ -39,7 +38,9 @@ export default function StudentFaceRegistration() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || data.error || "Upload failed");
+        setErrorMessage(data.message || data.error || "Upload failed");
+        setStatus("error");
+        return; // Exit early
       }
 
       setUploadedCount(data.imageCount || images.length);
@@ -47,7 +48,9 @@ export default function StudentFaceRegistration() {
       console.log("Upload successful:", data);
     } catch (error) {
       console.error("Upload error:", error);
-      setErrorMessage(error instanceof Error ? error.message : "An unexpected error occurred");
+      setErrorMessage(
+        error instanceof Error ? error.message : "An unexpected error occurred"
+      );
       setStatus("error");
     } finally {
       setIsUploading(false);
@@ -76,42 +79,35 @@ export default function StudentFaceRegistration() {
   };
 
   return (
-    <motion.div
-      className="flex flex-col items-center justify-center min-h-screen bg-background p-4"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader>
-          <motion.div variants={itemVariants}>
+          <div>
             <CardTitle className="text-2xl">Face Registration</CardTitle>
             <CardDescription>Enter your Student ID to begin.</CardDescription>
-          </motion.div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {status === "idle" && (
             <>
-              <motion.div className="space-y-2" variants={itemVariants}>
+              <div className="space-y-2">
                 <Input
                   placeholder="Enter Student ID"
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value)}
                   disabled={isCapturing || isUploading}
                 />
-              </motion.div>
+              </div>
 
               {studentId && (
                 <>
-                  <motion.div variants={itemVariants}>
-                    <WebcamCapture
-                      onCapture={handleCapture}
-                      isCapturing={isCapturing}
-                    />
-                  </motion.div>
+                  <WebcamCapture
+                    onCapture={handleCapture}
+                    isCapturing={isCapturing}
+                  />
 
                   {!isCapturing && !isUploading && (
-                    <motion.div className="flex flex-col items-center gap-2 w-full" variants={itemVariants}>
+                    <div className="flex flex-col items-center gap-2 w-full z-20">
                       <Button
                         onClick={() => setIsCapturing(true)}
                         disabled={!studentId}
@@ -123,16 +119,16 @@ export default function StudentFaceRegistration() {
                       <p className="text-xs text-muted-foreground text-center">
                         We'll capture 15-25 images over 5 seconds
                       </p>
-                    </motion.div>
+                    </div>
                   )}
 
                   {isUploading && (
-                    <motion.div variants={itemVariants} className="flex justify-center">
+                    <div className="flex justify-center z-20">
                       <Button disabled className="w-full max-w-xs">
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Uploading...
                       </Button>
-                    </motion.div>
+                    </div>
                   )}
                 </>
               )}
@@ -140,15 +136,16 @@ export default function StudentFaceRegistration() {
           )}
 
           {status === "success" && (
-            <motion.div className="flex flex-col items-center text-center space-y-4" variants={containerVariants}>
-              <motion.div variants={itemVariants}>
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div>
                 <CheckCircle className="w-16 h-16 text-green-500" />
-              </motion.div>
-              <motion.h3 className="font-bold text-lg" variants={itemVariants}>Registration Complete!</motion.h3>
-              <motion.p className="text-muted-foreground" variants={itemVariants}>
-                Successfully uploaded {uploadedCount} images for student ID: {studentId}
-              </motion.p>
-              <motion.div variants={itemVariants}>
+              </div>
+              <h3 className="font-bold text-lg">Registration Complete!</h3>
+              <p className="text-muted-foreground">
+                Successfully uploaded {uploadedCount} images for student ID:{" "}
+                {studentId}
+              </p>
+              <div>
                 <Button
                   variant="outline"
                   className="w-full"
@@ -160,20 +157,20 @@ export default function StudentFaceRegistration() {
                 >
                   Register Another Student
                 </Button>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           )}
 
           {status === "error" && (
-            <motion.div className="flex flex-col items-center text-center space-y-4" variants={containerVariants}>
-              <motion.div variants={itemVariants}>
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div>
                 <AlertCircle className="w-16 h-16 text-red-500" />
-              </motion.div>
-              <motion.h3 className="font-bold text-lg" variants={itemVariants}>Registration Failed</motion.h3>
-              <motion.p className="text-muted-foreground" variants={itemVariants}>
+              </div>
+              <h3 className="font-bold text-lg">Registration Failed</h3>
+              <p className="text-muted-foreground">
                 {errorMessage || "Something went wrong. Please try again."}
-              </motion.p>
-              <motion.div variants={itemVariants}>
+              </p>
+              <div>
                 <Button
                   variant="outline"
                   className="w-full"
@@ -184,19 +181,19 @@ export default function StudentFaceRegistration() {
                 >
                   Retry
                 </Button>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
-      <motion.div variants={itemVariants}>
+      <div>
         <Link
           href="/"
           className="mt-4 text-sm text-muted-foreground hover:underline"
         >
           Back to Home
         </Link>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }
