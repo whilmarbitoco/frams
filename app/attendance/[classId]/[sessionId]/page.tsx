@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
-import { Button } from "@/components/ui/button";
 import { markAttendance } from "@/actions/attendance";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
@@ -10,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { InfoCircledIcon } from "@radix-ui/react-icons";
 import * as tmImage from "@teachablemachine/image";
 import { FilesetResolver, FaceDetector } from "@mediapipe/tasks-vision";
+import { Button } from "@/components/ui/button"; // Added import for Button
 
 export default function AttendanceMarkingPage() {
   const webcamRef = useRef<Webcam>(null);
@@ -18,12 +18,13 @@ export default function AttendanceMarkingPage() {
   const [tmModel, setTmModel] = useState<any>(null);
   const [faceDetector, setFaceDetector] = useState<FaceDetector | null>(null);
   const [status, setStatus] = useState<
-    "loading" | "ready" | "scanning" | "success" | "error"
+    "loading" | "ready" | "scanning" | "success" | "already_marked" | "error"
   >("loading");
   const [recognizedStudent, setRecognizedStudent] = useState<string | null>(
     null
   );
   const isPredicting = useRef(false);
+  const lastPredictionTime = useRef(0);
 
   const params = useParams();
   const router = useRouter();
@@ -31,9 +32,6 @@ export default function AttendanceMarkingPage() {
   const sessionId = params.sessionId as string;
   const TM_URL = "/model/";
 
-  // -----------------------------
-  // LOAD TEACHABLE MACHINE + MEDIAPIPE FACE DETECTOR
-  // -----------------------------
   useEffect(() => {
     const loadModels = async () => {
       try {
@@ -65,7 +63,7 @@ export default function AttendanceMarkingPage() {
 
         setStatus("ready");
       } catch (err) {
-        console.error("Failed to load models:", err);
+        console.log("Failed to load models:", err);
         setStatus("error");
       }
     };
@@ -73,9 +71,6 @@ export default function AttendanceMarkingPage() {
     loadModels();
   }, []);
 
-  // -----------------------------
-  // DETECTION LOOP
-  // -----------------------------
   useEffect(() => {
     let animationFrameId: number;
 
@@ -87,38 +82,42 @@ export default function AttendanceMarkingPage() {
 
       const video = webcamRef.current.video;
       if (video.readyState !== 4) {
-         animationFrameId = requestAnimationFrame(detect);
-         return;
+        animationFrameId = requestAnimationFrame(detect);
+        return;
       }
 
       try {
-          const startTimeMs = performance.now();
-          const results = faceDetector.detectForVideo(video, startTimeMs);
-          drawBoundingBoxes(results);
+        const startTimeMs = performance.now();
+        const results = faceDetector.detectForVideo(video, startTimeMs);
+        drawBoundingBoxes(results);
 
-          if ((status === "ready" || status === "scanning") && !isPredicting.current) {
-            // Only predict if a face is detected
-            if (results.detections.length > 0) {
-                 predict();
-            }
+        if (
+          (status === "ready" || status === "scanning") &&
+          !isPredicting.current
+        ) {
+          const now = performance.now();
+          if (
+            results.detections.length > 0 &&
+            now - lastPredictionTime.current > 500
+          ) {
+            predict();
+            lastPredictionTime.current = now;
           }
+        }
       } catch (error) {
-          console.error("Detection error:", error);
+        console.error("Detection error:", error);
       }
 
       animationFrameId = requestAnimationFrame(detect);
     };
 
     if (status === "ready" && faceDetector && tmModel) {
-        detect();
+      detect();
     }
 
     return () => cancelAnimationFrame(animationFrameId);
   }, [status, faceDetector, tmModel]);
 
-  // -----------------------------
-  // DRAW BOUNDING BOXES
-  // -----------------------------
   const drawBoundingBoxes = (results: any) => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
@@ -132,46 +131,84 @@ export default function AttendanceMarkingPage() {
       const box = det.boundingBox;
       ctx.strokeStyle = "#FFC107";
       ctx.lineWidth = 3;
-      ctx.strokeRect(box.originX, box.originY, box.width, box.height);
+      // Mirror the X coordinate because the video is mirrored
+      const mirroredX = canvas.width - box.originX - box.width;
+      ctx.strokeRect(mirroredX, box.originY, box.width, box.height);
     });
   };
 
-  // -----------------------------
-  // PREDICTION (TEACHABLE MACHINE)
-  // -----------------------------
   const predict = async () => {
-    if (!tmModel || !webcamRef.current?.video || status === "success" || isPredicting.current) return;
+    if (
+      !tmModel ||
+      !webcamRef.current?.video ||
+      status === "success" ||
+      status === "already_marked" ||
+      isPredicting.current
+    )
+      return;
 
     isPredicting.current = true;
-    if (status === "ready") setStatus("scanning");
 
     try {
-        const predictions = await tmModel.predict(webcamRef.current.video);
+      const predictions = await tmModel.predict(webcamRef.current.video);
 
-        let bestPrediction = null;
-        let highestProb = 0;
+      let bestPrediction = null;
+      let highestProb = 0;
 
-        for (const p of predictions) {
-            if (p.probability > highestProb) {
-                highestProb = p.probability;
-                bestPrediction = p;
-            }
+      for (const p of predictions) {
+        if (p.probability > highestProb) {
+          highestProb = p.probability;
+          bestPrediction = p;
         }
+      }
 
-        if (bestPrediction && bestPrediction.probability > 0.95) {
-            // Ensure it's not the "Class 2" or background class if you have one, usually index 0 or last
-            // Assuming valid classes are student IDs/names
-            console.log("Recognized:", bestPrediction.className);
+      if (bestPrediction && bestPrediction.probability > 0.95) {
+        console.log("Recognized:", bestPrediction.className);
+
+        setStatus("scanning");
+
+        try {
+          const result = await markAttendance(
+            bestPrediction.className,
+            classId,
+            sessionId
+          );
+
+          if (result.success) {
             setRecognizedStudent(bestPrediction.className);
             setStatus("success");
-
-            await markAttendance(bestPrediction.className, classId, sessionId);
-            setTimeout(() => router.push("/"), 3000);
+            setTimeout(() => {
+              setStatus("ready");
+              setRecognizedStudent(null);
+            }, 3000);
+          } else if (
+            result.error === "Attendance already marked for this session."
+          ) {
+            setRecognizedStudent(bestPrediction.className);
+            setStatus("already_marked");
+            setTimeout(() => {
+              setStatus("ready");
+              setRecognizedStudent(null);
+            }, 3000);
+          } else {
+            console.error("Attendance error:", result.error);
+            setStatus("error");
+            setTimeout(() => setStatus("ready"), 3000);
+          }
+        } catch (serverError) {
+          console.error("Server action error:", serverError);
+          setStatus("error");
+          setTimeout(() => setStatus("ready"), 3000);
         }
+      }
     } catch (error) {
-        console.error("Prediction error:", error);
+      console.error("Prediction error:", error);
+      if (status === "scanning") {
+        setStatus("error");
+        setTimeout(() => setStatus("ready"), 3000);
+      }
     } finally {
-        isPredicting.current = false;
+      isPredicting.current = false;
     }
   };
 
@@ -179,22 +216,32 @@ export default function AttendanceMarkingPage() {
     loading: {
       icon: <Loader2 className="animate-spin" />,
       text: "Loading Models...",
+      color: "text-muted-foreground",
     },
     ready: {
       icon: <InfoCircledIcon className="text-blue-500" />,
       text: "Ready. Look at the camera.",
+      color: "text-blue-500",
     },
     scanning: {
       icon: <Loader2 className="animate-spin" />,
-      text: "Scanning...",
+      text: "Verifying...",
+      color: "text-yellow-500",
     },
     success: {
       icon: <CheckCircle className="text-green-500" />,
       text: `Welcome, ${recognizedStudent}!`,
+      color: "text-green-500",
+    },
+    already_marked: {
+      icon: <CheckCircle className="text-yellow-500" />,
+      text: `Welcome back, ${recognizedStudent}! (Already marked)`,
+      color: "text-yellow-500",
     },
     error: {
       icon: <XCircle className="text-red-500" />,
-      text: "Model load failed.",
+      text: "Verification failed. Retrying...",
+      color: "text-red-500",
     },
   };
 
@@ -221,13 +268,27 @@ export default function AttendanceMarkingPage() {
               height={720}
             />
           </div>
-          <div className="flex items-center justify-center h-8 text-lg font-medium text-muted-foreground z-30">
-            {currentStatus.icon && (
-              <span className="mr-2 h-6 w-6 flex items-center">
-                {currentStatus.icon}
-              </span>
-            )}
-            <p>{currentStatus.text}</p>
+          <div className="flex flex-col items-center justify-center h-16 text-lg font-medium text-muted-foreground z-30 gap-2">
+            <div className={`flex items-center ${currentStatus.color}`}>
+              {currentStatus.icon && (
+                <span className="mr-2 h-6 w-6 flex items-center">
+                  {currentStatus.icon}
+                </span>
+              )}
+              <p>{currentStatus.text}</p>
+            </div>
+            {status === "error" || status === "scanning" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setStatus("ready");
+                  isPredicting.current = false;
+                }}
+              >
+                Reset
+              </Button>
+            ) : null}
           </div>
         </CardContent>
       </Card>

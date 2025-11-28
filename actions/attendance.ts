@@ -6,14 +6,25 @@ import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function markAttendance(
-  studentId: string,
+  studentId: string, // This is the custom student_id (e.g. from Teachable Machine label)
   classId: number,
   sessionId: string
 ) {
-  // 1. Check if the student is already marked for this session
+  // 1. Find the student user record using the custom student_id
+  const student = await db.query.user.findFirst({
+    where: eq(user.studentId, studentId),
+  });
+
+  if (!student) {
+    return { error: "Student not found." };
+  }
+
+  const userPk = student.id;
+
+  // 2. Check if the student is already marked for this session using their PK
   const existingAttendance = await db.query.attendance.findFirst({
     where: and(
-      eq(attendance.studentId, studentId),
+      eq(attendance.studentId, userPk),
       eq(attendance.sessionId, sessionId)
     ),
   });
@@ -22,7 +33,7 @@ export async function markAttendance(
     return { error: "Attendance already marked for this session." };
   }
 
-  // 2. Get class schedule to check time
+  // 3. Get class schedule to check time
   const classInfo = await db.query.classes.findFirst({
     where: eq(classes.id, classId),
   });
@@ -31,7 +42,7 @@ export async function markAttendance(
     return { error: "Class not found." };
   }
 
-  // 3. Determine status (present or late)
+  // 4. Determine status (present or late)
   const now = new Date();
   const [startHour, startMinute] = classInfo.startTime.split(":").map(Number);
   const classStartTime = new Date();
@@ -41,10 +52,10 @@ export async function markAttendance(
   const gracePeriod = 15 * 60 * 1000;
   const status = now.getTime() <= classStartTime.getTime() + gracePeriod ? "present" : "late";
 
-  // 4. Create the attendance record
+  // 5. Create the attendance record
   try {
     await db.insert(attendance).values({
-      studentId,
+      studentId: userPk,
       classId,
       sessionId,
       status,
