@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { attendance, classes, users } from "@/db/schema";
+import { attendance, classes, user } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export async function POST(req: Request) {
@@ -20,12 +20,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
-    // Find student by name (from Teachable Machine class label)
-    // Assuming the class label IS the student ID or Name
-    // In a real app, we'd map this better.
-    // Let's assume the model returns the Student ID.
-    const student = await db.query.users.findFirst({
-        where: eq(users.studentId, studentId)
+    const student = await db.query.user.findFirst({
+        where: eq(user.studentId, studentId)
     });
 
     if (!student) {

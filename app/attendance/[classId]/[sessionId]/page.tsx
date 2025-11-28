@@ -7,166 +7,186 @@ import { markAttendance } from "@/actions/attendance";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { motion } from "@/components/motion";
 import { InfoCircledIcon } from "@radix-ui/react-icons";
-
-declare global {
-  interface Window {
-    tmImage: any;
-    tf: any;
-    mpFaceMesh: any;
-  }
-}
+import * as tmImage from "@teachablemachine/image";
+import { FilesetResolver, FaceDetector } from "@mediapipe/tasks-vision";
 
 export default function AttendanceMarkingPage() {
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const [tmModel, setTmModel] = useState<any>(null);
+  const [faceDetector, setFaceDetector] = useState<FaceDetector | null>(null);
   const [status, setStatus] = useState<
     "loading" | "ready" | "scanning" | "success" | "error"
   >("loading");
   const [recognizedStudent, setRecognizedStudent] = useState<string | null>(
     null
   );
+  const isPredicting = useRef(false);
 
   const params = useParams();
   const router = useRouter();
   const classId = parseInt(params.classId as string, 10);
   const sessionId = params.sessionId as string;
+  const TM_URL = "/model/";
 
-  const TM_URL = "https://teachablemachine.withgoogle.com/models/CbC1vH2pE/";
-
+  // -----------------------------
+  // LOAD TEACHABLE MACHINE + MEDIAPIPE FACE DETECTOR
+  // -----------------------------
   useEffect(() => {
-    const loadScript = (src: string) =>
-      new Promise<void>((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = src;
-        script.async = true;
-        script.onload = () => resolve();
-        script.onerror = () => reject();
-        document.body.appendChild(script);
-      });
-
     const loadModels = async () => {
       try {
-        await loadScript(
-          "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"
-        );
-        await loadScript(
-          "https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"
-        );
-        await loadScript(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"
-        );
-        const loadedModel = await window.tmImage.load(
+        console.log("Loading models...");
+        // Load TM model
+        const loadedTM = await tmImage.load(
           TM_URL + "model.json",
           TM_URL + "metadata.json"
         );
-        setTmModel(loadedModel);
+        setTmModel(loadedTM);
+        console.log("Teachable Machine model loaded.");
+
+        // Load MediaPipe FaceDetector
+        const fileset = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+        );
+
+        const detector = await FaceDetector.createFromOptions(fileset, {
+          baseOptions: {
+            modelAssetPath:
+              "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+            delegate: "GPU",
+          },
+          runningMode: "VIDEO",
+        });
+
+        setFaceDetector(detector);
+        console.log("Face Detector loaded.");
+
         setStatus("ready");
       } catch (err) {
         console.error("Failed to load models:", err);
         setStatus("error");
       }
     };
+
     loadModels();
   }, []);
 
+  // -----------------------------
+  // DETECTION LOOP
+  // -----------------------------
   useEffect(() => {
     let animationFrameId: number;
-    let faceMesh: any;
 
-    const startDetection = async () => {
-      if (!webcamRef.current?.video || status !== "ready") return;
-
-      const video = webcamRef.current.video;
-
-      // Initialize FaceMesh
-      faceMesh = new window.mpFaceMesh.FaceMesh({
-        locateFile: (file: string) =>
-          `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
-      });
-
-      faceMesh.setOptions({
-        maxNumFaces: 1,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-      });
-
-      faceMesh.onResults(onResults);
-
-      // Manual detection loop
-      const detect = async () => {
-        if (webcamRef.current?.video && video.readyState === 4) {
-          await faceMesh.send({ image: video });
-        }
+    const detect = async () => {
+      if (!faceDetector || !webcamRef.current?.video || !tmModel) {
         animationFrameId = requestAnimationFrame(detect);
-      };
-
-      detect();
-    };
-
-    startDetection();
-
-    return () => {
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      if (faceMesh) faceMesh.close();
-    };
-  }, [status]);
-
-  const onResults = (results: any) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !results.multiFaceLandmarks) return;
-
-    const ctx = canvas.getContext("2d")!;
-    ctx.save();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    for (const landmarks of results.multiFaceLandmarks) {
-      const x = landmarks[0].x * canvas.width;
-      const y = landmarks[0].y * canvas.height;
-      const w = (landmarks[200].x - landmarks[0].x) * canvas.width;
-      const h = (landmarks[400].y - landmarks[0].y) * canvas.height;
-      ctx.strokeStyle = "#FFC107";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, w, h);
-    }
-    ctx.restore();
-
-    if (status === "ready" || status === "scanning") predict();
-  };
-
-  const predict = async () => {
-    if (!tmModel || !webcamRef.current?.video || status === "success") return;
-
-    if (status === "ready") setStatus("scanning");
-
-    const predictions = await tmModel.predict(webcamRef.current.video);
-
-    for (const p of predictions) {
-      if (p.probability > 0.9) {
-        // Increased confidence threshold
-        setRecognizedStudent(p.className);
-        setStatus("success");
-        await markAttendance(p.className, classId, sessionId);
-        setTimeout(() => router.push("/"), 3000); // Redirect after 3s
         return;
       }
+
+      const video = webcamRef.current.video;
+      if (video.readyState !== 4) {
+         animationFrameId = requestAnimationFrame(detect);
+         return;
+      }
+
+      try {
+          const startTimeMs = performance.now();
+          const results = faceDetector.detectForVideo(video, startTimeMs);
+          drawBoundingBoxes(results);
+
+          if ((status === "ready" || status === "scanning") && !isPredicting.current) {
+            // Only predict if a face is detected
+            if (results.detections.length > 0) {
+                 predict();
+            }
+          }
+      } catch (error) {
+          console.error("Detection error:", error);
+      }
+
+      animationFrameId = requestAnimationFrame(detect);
+    };
+
+    if (status === "ready" && faceDetector && tmModel) {
+        detect();
+    }
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [status, faceDetector, tmModel]);
+
+  // -----------------------------
+  // DRAW BOUNDING BOXES
+  // -----------------------------
+  const drawBoundingBoxes = (results: any) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (!results?.detections) return;
+
+    results.detections.forEach((det: any) => {
+      const box = det.boundingBox;
+      ctx.strokeStyle = "#FFC107";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(box.originX, box.originY, box.width, box.height);
+    });
+  };
+
+  // -----------------------------
+  // PREDICTION (TEACHABLE MACHINE)
+  // -----------------------------
+  const predict = async () => {
+    if (!tmModel || !webcamRef.current?.video || status === "success" || isPredicting.current) return;
+
+    isPredicting.current = true;
+    if (status === "ready") setStatus("scanning");
+
+    try {
+        const predictions = await tmModel.predict(webcamRef.current.video);
+
+        let bestPrediction = null;
+        let highestProb = 0;
+
+        for (const p of predictions) {
+            if (p.probability > highestProb) {
+                highestProb = p.probability;
+                bestPrediction = p;
+            }
+        }
+
+        if (bestPrediction && bestPrediction.probability > 0.95) {
+            // Ensure it's not the "Class 2" or background class if you have one, usually index 0 or last
+            // Assuming valid classes are student IDs/names
+            console.log("Recognized:", bestPrediction.className);
+            setRecognizedStudent(bestPrediction.className);
+            setStatus("success");
+
+            await markAttendance(bestPrediction.className, classId, sessionId);
+            setTimeout(() => router.push("/"), 3000);
+        }
+    } catch (error) {
+        console.error("Prediction error:", error);
+    } finally {
+        isPredicting.current = false;
     }
   };
 
   const statusMessages = {
     loading: {
       icon: <Loader2 className="animate-spin" />,
-      text: "Loading Model...",
+      text: "Loading Models...",
     },
     ready: {
-      text: "Ready to scan. Please look at the camera.",
       icon: <InfoCircledIcon className="text-blue-500" />,
+      text: "Ready. Look at the camera.",
     },
     scanning: {
       icon: <Loader2 className="animate-spin" />,
-      text: "Scanning for face...",
+      text: "Scanning...",
     },
     success: {
       icon: <CheckCircle className="text-green-500" />,
@@ -174,7 +194,7 @@ export default function AttendanceMarkingPage() {
     },
     error: {
       icon: <XCircle className="text-red-500" />,
-      text: "Failed to load model.",
+      text: "Model load failed.",
     },
   };
 
@@ -184,7 +204,6 @@ export default function AttendanceMarkingPage() {
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-2xl p-4">
         <CardContent className="flex flex-col items-center gap-4">
-          {/* Main video container with explicit aspect ratio and relative positioning */}
           <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden shadow-md">
             <Webcam
               ref={webcamRef}
@@ -194,10 +213,6 @@ export default function AttendanceMarkingPage() {
                 height: 720,
               }}
               className="absolute inset-0 w-full h-full object-cover z-10 transform scale-x-[-1]"
-              onUserMedia={() => console.log("Webcam user media loaded")}
-              onUserMediaError={(err) =>
-                console.error("Webcam user media error:", err)
-              }
             />
             <canvas
               ref={canvasRef}
